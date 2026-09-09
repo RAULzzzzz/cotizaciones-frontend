@@ -1,0 +1,47 @@
+/* Tokens de diseño portados del proyecto anterior (FrontEnd-EstadiaTSU).
+   Por ahora solo el tema claro: el sistema de cotizaciones se ve siempre en claro.
+   Cuando haga falta modo oscuro se agrega el bloque :root[data-theme="dark"]. */
+
+:root {
+  color-scheme: light;
+
+  --white:        #FFFFFF;
+  --bg:           #F8FAFD;
+  --navy:         #1E3A5F;
+  --blue:         #1B4ED8;
+  --blue-hover:   #1640C0;
+  --blue-light:   #EBF2FF;
+  --blue-mid:     #BFCFFF;
+  --border:       #E2E8F0;
+  --border-soft:  #CBD5E1;
+  --border-focus: #1B4ED8;
+  --muted:        #64748B;
+  --muted-2:      #94A3B8;
+  --bg-soft:      #F1F5F9;
+  --text:         #0F172A;
+  --text-soft:    #475569;
+  --danger:       #C0392B;
+  --danger-bg:    #FEF2F2;
+  --danger-bd:    #FCA5A5;
+  --danger-solid: #DC2626;
+  --success:      #0F766E;
+  --success-bg:   #F0FDF9;
+  --success-bd:   #99E6DA;
+  --warning:      #D97706;
+  --warning-bg:   #FFFBEB;
+  --warning-bd:   #FCD34D;
+  --orange:       #C2410C;
+  --orange-bg:    #FFF7ED;
+  --orange-bd:    #FED7AA;
+  --purple:       #6D28D9;
+  --purple-bg:    #F5F3FF;
+  --purple-bd:    #DDD6FE;
+
+  --font:      'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+  --radius-sm: 6px;
+  --radius:    8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 3px rgba(30, 58, 95, 0.07);
+  --shadow:    0 4px 12px rgba(30, 58, 95, 0.10);
+  --shadow-lg: 0 8px 32px rgba(30, 58, 95, 0.13);
+}

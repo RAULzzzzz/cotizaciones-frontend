@@ -12,4 +12,22 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Si el backend responde 401 (token expirado, inválido o usuario borrado),
+// limpiamos la sesión y mandamos al login. Import diferido para evitar ciclos
+// de inicialización entre este módulo, el store y el router.
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      const { useAuthStore } = await import('@/stores/auth')
+      const { default: router } = await import('@/router')
+      useAuthStore().logout()
+      if (router.currentRoute.value.name !== 'login') {
+        router.push({ name: 'login' })
+      }
+    }
+    return Promise.reject(error)
+  },
+)
+
 export default api
