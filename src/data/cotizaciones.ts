@@ -2,14 +2,10 @@
 // Cuando modelemos la base de datos, esto se reemplaza por llamadas a la API
 // (services/api.ts) manteniendo los mismos tipos.
 
-export type EstadoCotizacion =
-  | 'Borrador'
-  | 'ListaParaEnviar'
-  | 'Enviada'
-  | 'Aceptada'
-  | 'Rechazada'
-  | 'Vencida'
-  | 'Cancelada'
+// El sistema solo genera cotizaciones, no lleva un historial de flujo de venta:
+// cada una queda Aceptada al crearse, y "Eliminada" es un borrado suave (no aparece
+// en la lista, pero no se pierde el registro).
+export type EstadoCotizacion = 'Aceptada' | 'Eliminada'
 
 export type EstadoCompra = 'Agendada' | 'Comprada' | 'Cancelada' | null
 
@@ -45,22 +41,11 @@ export interface Cotizacion {
   partidas: Partida[]
 }
 
-// Estilos por estado — mismos tokens que el proyecto anterior.
+// Estilos por estado. "Eliminada" solo se usa para filtrar la lista, nunca se
+// muestra como badge (una cotización eliminada no aparece en ningún lado).
 export const ESTADOS: Record<EstadoCotizacion, { bg: string; color: string; label?: string }> = {
-  Borrador: { bg: 'var(--bg-soft)', color: 'var(--text-soft)' },
-  ListaParaEnviar: { bg: 'var(--warning-bg)', color: 'var(--warning)', label: 'Lista para enviar' },
-  Enviada: { bg: 'var(--blue-light)', color: '#1D4ED8' },
   Aceptada: { bg: 'var(--success-bg)', color: 'var(--success)' },
-  Rechazada: { bg: 'var(--danger-bg)', color: 'var(--danger)' },
-  Vencida: { bg: 'var(--orange-bg)', color: 'var(--orange)' },
-  Cancelada: { bg: 'var(--danger-bg)', color: 'var(--danger)' },
-}
-
-// Qué estados se pueden alcanzar desde el estado actual.
-export const TRANSICIONES: Partial<Record<EstadoCotizacion, EstadoCotizacion[]>> = {
-  Borrador: ['ListaParaEnviar', 'Cancelada'],
-  ListaParaEnviar: ['Borrador', 'Enviada', 'Cancelada'],
-  Enviada: ['Aceptada', 'Rechazada', 'Vencida', 'Cancelada'],
+  Eliminada: { bg: 'var(--danger-bg)', color: 'var(--danger)' },
 }
 
 export const CHIP_ESTADO_COMPRA: Record<string, { bg: string; color: string; label: string }> = {
@@ -85,61 +70,243 @@ export const fecha = (valor: string) =>
       })
     : 'Sin definir'
 
+/* ───────────────── Formulario de alta ───────────────── */
+
+export interface PartidaForm {
+  tipoPartida: 'Producto' | 'Servicio'
+  estadoArticulo: 'Nuevo' | 'Reacondicionado' | 'Usado'
+  sku: string
+  descripcion: string
+  especificacionesTecnicas: string
+  unidad: string
+  cantidad: number | string
+  precioUnitarioCompra: number | string
+  precioUnitarioVenta: number | string
+  porcentajeDescuento: number
+  color: string
+  marca: string
+  tiempoEntrega: string
+  observaciones: string
+  requiereCompra: boolean
+  imagenPreview: string | null
+  imagenPreview2: string | null
+}
+
+export interface CotizacionForm {
+  idCliente: number | null
+  tipoCliente: string
+  nombreComercial: string
+  atencionA: string
+  rfc: string
+  correoContacto: string
+  telefonoContacto: string
+  vigenciaHasta: string
+  moneda: string
+  preciosIncluyenIva: boolean
+  porcentajeIva: number
+  porcentajeAnticipo: number | ''
+  tiempoEntrega: string
+  condicionesPago: string
+  notasComerciales: string
+  metodosPago: string
+  partidas: PartidaForm[]
+}
+
+export const PASOS = ['Cliente', 'Productos', 'Condiciones']
+
+export const MAX_PARTIDAS = 60
+
+export const TIPOS_CLIENTE = ['Empresa', 'Escuela', 'Comercio', 'Particular', 'Gobierno', 'Otro']
+
+export const UNIDADES = [
+  { value: 'PZA', label: 'PZA — Pieza' },
+  { value: 'CAJA', label: 'CAJA — Caja' },
+  { value: 'KG', label: 'KG — Kilogramos' },
+  { value: 'LT', label: 'LT — Litros' },
+  { value: 'SERVICIO', label: 'SERVICIO' },
+  { value: 'LICENCIA', label: 'LICENCIA' },
+  { value: 'PAQUETE', label: 'PAQUETE' },
+  { value: 'METRO', label: 'METRO' },
+]
+
+export const NOTAS_PREDEFINIDAS = [
+  'PRECIOS SUJETOS A VARIACIÓN DEL PRECIO DEL DÓLAR.',
+  'CONSULTAR PREVIAMENTE LA DISPONIBILIDAD DE LOS PRODUCTOS O SERVICIOS CON SU EJECUTIVO DE VENTAS.',
+  'EL MONTO TOTAL YA INCLUYE IVA.',
+  'PRECIOS SUJETOS A CAMBIO SIN PREVIO AVISO.',
+  'UNA VEZ AUTORIZADO Y ADQUIRIDO EL PRODUCTO DE DICHA COTIZACIÓN POR PARTE DEL CLIENTE NO HABRÁ CAMBIOS NI DEVOLUCIONES DE EFECTIVO Y DE PRODUCTO(S).',
+]
+
+export const CONDICIONES_PREDEFINIDAS = [
+  'Pago de contado.',
+  '100% de anticipo para iniciar el pedido.',
+  '50% de anticipo y 50% contra entrega.',
+  '30 días neto a partir de la fecha de factura.',
+  '60 días neto a partir de la fecha de factura.',
+  'Transferencia bancaria previa a la entrega del equipo.',
+  'Cheque certificado o de caja a nombre de la empresa.',
+]
+
+// Datos de ejemplo genéricos — NUNCA usar una CLABE, cuenta o titular real aquí.
+export const METODOS_PAGO_PREDEFINIDOS = [
+  'Banco Ejemplo — CLABE: 000000000000000000 — Cuenta: 0000000000 — Titular: Empresa de Ejemplo S.A. de C.V.',
+  'Efectivo en sucursal.',
+  'Transferencia SPEI.',
+]
+
+// Capitaliza cada palabra — el original lo aplica al escribir nombres y descripciones.
+export const toTitleCase = (s: string) =>
+  String(s ?? '').replace(/(^|\s)(\p{L})/gu, (_, sep: string, letra: string) => sep + letra.toUpperCase())
+
+export const capitalizar = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+
+// Formato "773 185 1363": bloques de 3-3-4.
+export const formatTel = (v: string) => {
+  const d = String(v ?? '').replace(/\D/g, '').slice(0, 10)
+  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean).join(' ')
+}
+
+export const partidaVacia = (): PartidaForm => ({
+  tipoPartida: 'Producto',
+  estadoArticulo: 'Nuevo',
+  sku: '',
+  descripcion: '',
+  especificacionesTecnicas: '',
+  unidad: 'PZA',
+  cantidad: 1,
+  precioUnitarioCompra: '',
+  precioUnitarioVenta: '',
+  porcentajeDescuento: 0,
+  color: '',
+  marca: '',
+  tiempoEntrega: '',
+  observaciones: '',
+  requiereCompra: true,
+  imagenPreview: null,
+  imagenPreview2: null,
+})
+
+export const formularioVacio = (): CotizacionForm => ({
+  idCliente: null,
+  tipoCliente: 'Empresa',
+  nombreComercial: '',
+  atencionA: '',
+  rfc: '',
+  correoContacto: '',
+  telefonoContacto: '',
+  vigenciaHasta: '',
+  moneda: 'MXN',
+  preciosIncluyenIva: true,
+  porcentajeIva: 16,
+  porcentajeAnticipo: '',
+  tiempoEntrega: '',
+  condicionesPago: '',
+  notasComerciales: '',
+  metodosPago: '',
+  partidas: [partidaVacia()],
+})
+
+// Totales del formulario. Regla del original: si "los precios ya incluyen IVA",
+// el precio capturado es el final y el IVA NO se desglosa (queda en 0), de modo
+// que Subtotal + IVA siempre da el Total.
+export function calcularTotales(f: CotizacionForm) {
+  const acc = { subtotal: 0, descuento: 0, impuestos: 0, total: 0, compra: 0 }
+
+  for (const p of f.partidas) {
+    const cantidad = Number(p.cantidad || 0)
+    const venta = Number(p.precioUnitarioVenta || 0)
+    const compra = Number(p.precioUnitarioCompra || 0)
+
+    const descuento = (cantidad * venta * Number(p.porcentajeDescuento || 0)) / 100
+    const base = cantidad * venta - descuento
+    const impuesto = f.preciosIncluyenIva ? 0 : (base * Number(f.porcentajeIva || 0)) / 100
+
+    acc.subtotal += base
+    acc.descuento += descuento
+    acc.impuestos += impuesto
+    acc.total += base + impuesto
+    acc.compra += cantidad * compra
+  }
+
+  const utilidad = acc.subtotal - acc.compra
+  const margenPct = acc.subtotal > 0 ? (utilidad / acc.subtotal) * 100 : 0
+
+  return { ...acc, utilidad, margenPct }
+}
+
+// Una partida "con contenido" pide confirmación antes de borrarse.
+export const partidaTieneContenido = (p: PartidaForm) =>
+  Boolean(
+    p.descripcion.trim() ||
+      p.sku.trim() ||
+      p.especificacionesTecnicas.trim() ||
+      p.color.trim() ||
+      p.marca.trim() ||
+      p.tiempoEntrega.trim() ||
+      p.observaciones.trim() ||
+      Number(p.precioUnitarioCompra || 0) > 0 ||
+      Number(p.precioUnitarioVenta || 0) > 0 ||
+      Number(p.porcentajeDescuento || 0) > 0 ||
+      Number(p.cantidad || 0) !== 1 ||
+      p.imagenPreview ||
+      p.imagenPreview2,
+  )
+
 export const COTIZACIONES: Cotizacion[] = [
   {
     id: 1,
     folio: 'COT-2026-0041',
     version: 1,
-    estado: 'Enviada',
+    estado: 'Aceptada',
     tipoCliente: 'Empresa',
     nombreComercial: 'Distribuidora El Roble S.A. de C.V.',
     atencionA: 'Ing. Marcela Ruiz',
     nombreAsesor: 'Raúl Cruz',
     moneda: 'MXN',
     vigenciaHasta: '2026-09-30',
-    subtotal: 84500,
-    impuestos: 13520,
-    total: 98020,
-    utilidadEstimada: 18600,
+    subtotal: 42750,
+    impuestos: 6840,
+    total: 49590,
+    utilidadEstimada: 8550,
     partidas: [
       {
         id: 11,
         numeroPartida: 1,
-        descripcion: 'Laptop Dell Latitude 5450',
-        especificacionesTecnicas: 'Core i7-1355U, 16 GB RAM, 512 GB SSD, 14"',
-        sku: 'DL-5450-I7',
+        descripcion: 'Servicio de mantenimiento mayor (aceite, filtros y afinación)',
+        especificacionesTecnicas: 'Incluye aceite sintético 5W-30 y filtro de aire',
+        sku: '',
         cantidad: 5,
-        unidad: 'PZA',
-        precioUnitarioVenta: 13500,
-        importe: 67500,
-        requiereCompra: true,
-        estadoCompra: 'Agendada',
+        unidad: 'SERVICIO',
+        precioUnitarioVenta: 1800,
+        importe: 9000,
+        requiereCompra: false,
+        estadoCompra: null,
       },
       {
         id: 12,
         numeroPartida: 2,
-        descripcion: 'Monitor LG 24" IPS Full HD',
-        especificacionesTecnicas: '24MP400, 75 Hz, HDMI + VGA',
-        sku: 'LG-24MP400',
+        descripcion: 'Balatas cerámicas delanteras',
+        especificacionesTecnicas: 'Juego completo, incluye instalación',
+        sku: 'BAL-CER-DEL',
         cantidad: 5,
         unidad: 'PZA',
-        precioUnitarioVenta: 2800,
-        importe: 14000,
+        precioUnitarioVenta: 950,
+        importe: 4750,
         requiereCompra: true,
-        estadoCompra: 'Comprada',
+        estadoCompra: 'Agendada',
       },
       {
         id: 13,
         numeroPartida: 3,
-        descripcion: 'Instalación y configuración de equipos',
-        especificacionesTecnicas: 'Incluye migración de perfiles y alta en dominio',
-        sku: '',
-        cantidad: 1,
-        unidad: 'SERV',
-        precioUnitarioVenta: 3000,
-        importe: 3000,
-        requiereCompra: false,
-        estadoCompra: null,
+        descripcion: 'Llantas 195/65 R15',
+        especificacionesTecnicas: 'Radial, índice de carga 91H',
+        sku: 'LLA-195-65-R15',
+        cantidad: 20,
+        unidad: 'PZA',
+        precioUnitarioVenta: 1450,
+        importe: 29000,
+        requiereCompra: true,
+        estadoCompra: 'Comprada',
       },
     ],
   },
@@ -154,36 +321,36 @@ export const COTIZACIONES: Cotizacion[] = [
     nombreAsesor: 'Raúl Cruz',
     moneda: 'MXN',
     vigenciaHasta: '2026-09-15',
-    subtotal: 41200,
-    impuestos: 6592,
-    total: 47792,
-    utilidadEstimada: 9400,
+    subtotal: 10950,
+    impuestos: 1752,
+    total: 12702,
+    utilidadEstimada: 2190,
     partidas: [
       {
         id: 21,
         numeroPartida: 1,
-        descripcion: 'Impresora multifuncional HP LaserJet M428fdw',
-        especificacionesTecnicas: 'Dúplex automático, red y WiFi',
-        sku: 'HP-M428FDW',
-        cantidad: 2,
+        descripcion: 'Cambio de amortiguadores delanteros',
+        especificacionesTecnicas: 'Par, incluye mano de obra',
+        sku: 'AMO-DEL-PAR',
+        cantidad: 3,
         unidad: 'PZA',
-        precioUnitarioVenta: 11600,
-        importe: 23200,
+        precioUnitarioVenta: 3200,
+        importe: 9600,
         requiereCompra: true,
         estadoCompra: 'Comprada',
       },
       {
         id: 22,
         numeroPartida: 2,
-        descripcion: 'Tóner HP 59A original',
-        especificacionesTecnicas: 'Rendimiento 3,000 páginas',
-        sku: 'HP-CF259A',
-        cantidad: 6,
-        unidad: 'PZA',
-        precioUnitarioVenta: 3000,
-        importe: 18000,
-        requiereCompra: true,
-        estadoCompra: 'Comprada',
+        descripcion: 'Alineación y balanceo',
+        especificacionesTecnicas: '4 ruedas, incluye rotación',
+        sku: '',
+        cantidad: 3,
+        unidad: 'SERVICIO',
+        precioUnitarioVenta: 450,
+        importe: 1350,
+        requiereCompra: false,
+        estadoCompra: null,
       },
     ],
   },
@@ -191,28 +358,28 @@ export const COTIZACIONES: Cotizacion[] = [
     id: 3,
     folio: 'COT-2026-0039',
     version: 1,
-    estado: 'ListaParaEnviar',
+    estado: 'Aceptada',
     tipoCliente: 'Particular',
     nombreComercial: 'Ana Sofía Miranda',
     atencionA: '',
     nombreAsesor: 'Raúl Cruz',
     moneda: 'MXN',
     vigenciaHasta: '2026-09-22',
-    subtotal: 18900,
-    impuestos: 3024,
-    total: 21924,
-    utilidadEstimada: 4100,
+    subtotal: 2850,
+    impuestos: 456,
+    total: 3306,
+    utilidadEstimada: 570,
     partidas: [
       {
         id: 31,
         numeroPartida: 1,
-        descripcion: 'PC de escritorio armada gamer',
-        especificacionesTecnicas: 'Ryzen 5 5600, RTX 4060, 16 GB, 1 TB NVMe',
-        sku: 'PC-R5-4060',
+        descripcion: 'Batería 12V 650A',
+        especificacionesTecnicas: 'Libre de mantenimiento, garantía 18 meses',
+        sku: 'BAT-12V-650A',
         cantidad: 1,
         unidad: 'PZA',
-        precioUnitarioVenta: 18900,
-        importe: 18900,
+        precioUnitarioVenta: 2850,
+        importe: 2850,
         requiereCompra: true,
         estadoCompra: null,
       },
@@ -222,28 +389,28 @@ export const COTIZACIONES: Cotizacion[] = [
     id: 4,
     folio: 'COT-2026-0038',
     version: 1,
-    estado: 'Borrador',
+    estado: 'Aceptada',
     tipoCliente: 'Empresa',
     nombreComercial: 'Clínica Santa Elena',
     atencionA: 'Dra. Paulina Ortiz',
     nombreAsesor: 'Raúl Cruz',
     moneda: 'MXN',
     vigenciaHasta: '',
-    subtotal: 7350,
-    impuestos: 1176,
-    total: 8526,
-    utilidadEstimada: 1550,
+    subtotal: 6800,
+    impuestos: 1088,
+    total: 7888,
+    utilidadEstimada: 1300,
     partidas: [
       {
         id: 41,
         numeroPartida: 1,
-        descripcion: 'No-break APC 1500VA',
-        especificacionesTecnicas: 'BX1500M, 10 contactos, LCD',
-        sku: 'APC-BX1500M',
-        cantidad: 3,
+        descripcion: 'Kit de distribución (banda, tensor y bomba de agua)',
+        especificacionesTecnicas: 'Incluye mano de obra e instalación',
+        sku: 'KIT-DIST-01',
+        cantidad: 1,
         unidad: 'PZA',
-        precioUnitarioVenta: 2450,
-        importe: 7350,
+        precioUnitarioVenta: 6800,
+        importe: 6800,
         requiereCompra: true,
         estadoCompra: null,
       },
@@ -253,41 +420,41 @@ export const COTIZACIONES: Cotizacion[] = [
     id: 5,
     folio: 'COT-2026-0037',
     version: 3,
-    estado: 'Rechazada',
+    estado: 'Eliminada',
     tipoCliente: 'Empresa',
     nombreComercial: 'Transportes del Bajío',
     atencionA: 'C.P. Julio Navarro',
     nombreAsesor: 'Raúl Cruz',
     moneda: 'MXN',
     vigenciaHasta: '2026-08-28',
-    subtotal: 132000,
-    impuestos: 21120,
-    total: 153120,
-    utilidadEstimada: 27300,
+    subtotal: 58000,
+    impuestos: 9280,
+    total: 67280,
+    utilidadEstimada: 11600,
     partidas: [
       {
         id: 51,
         numeroPartida: 1,
-        descripcion: 'Servidor Dell PowerEdge T350',
-        especificacionesTecnicas: 'Xeon E-2314, 32 GB ECC, 2×2 TB SAS',
-        sku: 'DL-T350',
-        cantidad: 1,
-        unidad: 'PZA',
-        precioUnitarioVenta: 96000,
-        importe: 96000,
-        requiereCompra: true,
-        estadoCompra: 'Cancelada',
+        descripcion: 'Servicio de frenos completo (4 ruedas)',
+        especificacionesTecnicas: 'Balatas, discos y rectificado',
+        sku: '',
+        cantidad: 8,
+        unidad: 'SERVICIO',
+        precioUnitarioVenta: 2600,
+        importe: 20800,
+        requiereCompra: false,
+        estadoCompra: null,
       },
       {
         id: 52,
         numeroPartida: 2,
-        descripcion: 'Switch administrable Cisco CBS350-24T',
-        especificacionesTecnicas: '24 puertos Gigabit, capa 3',
-        sku: 'CS-CBS350-24T',
-        cantidad: 2,
+        descripcion: 'Llantas 22.5 para tráiler',
+        especificacionesTecnicas: 'Radial, alta resistencia',
+        sku: 'LLA-225-TRA',
+        cantidad: 6,
         unidad: 'PZA',
-        precioUnitarioVenta: 18000,
-        importe: 36000,
+        precioUnitarioVenta: 6200,
+        importe: 37200,
         requiereCompra: true,
         estadoCompra: 'Cancelada',
       },
@@ -297,29 +464,29 @@ export const COTIZACIONES: Cotizacion[] = [
     id: 6,
     folio: 'COT-2026-0036',
     version: 1,
-    estado: 'Vencida',
+    estado: 'Aceptada',
     tipoCliente: 'Particular',
     nombreComercial: 'Roberto Cárdenas',
     atencionA: '',
     nombreAsesor: 'Raúl Cruz',
     moneda: 'MXN',
     vigenciaHasta: '2026-08-10',
-    subtotal: 5600,
-    impuestos: 896,
-    total: 6496,
-    utilidadEstimada: 980,
+    subtotal: 850,
+    impuestos: 136,
+    total: 986,
+    utilidadEstimada: 200,
     partidas: [
       {
         id: 61,
         numeroPartida: 1,
-        descripcion: 'Cambio de pantalla laptop HP 15"',
-        especificacionesTecnicas: 'Panel LED 15.6" FHD + mano de obra',
+        descripcion: 'Cambio de aceite y filtro',
+        especificacionesTecnicas: 'Aceite sintético 5W-30, 4 litros',
         sku: '',
         cantidad: 1,
-        unidad: 'SERV',
-        precioUnitarioVenta: 5600,
-        importe: 5600,
-        requiereCompra: true,
+        unidad: 'SERVICIO',
+        precioUnitarioVenta: 850,
+        importe: 850,
+        requiereCompra: false,
         estadoCompra: null,
       },
     ],

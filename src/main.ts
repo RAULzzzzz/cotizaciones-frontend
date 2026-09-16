@@ -6,6 +6,7 @@ import router from './router'
 import vuetify from './plugins/vuetify'
 
 import './styles/variables.css'
+import './styles/forms.css'
 
 const app = createApp(App)
 

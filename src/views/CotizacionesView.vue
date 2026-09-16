@@ -3,12 +3,13 @@ import { ref } from 'vue'
 import AppTopBar from '@/components/AppTopBar.vue'
 import ListaCotizaciones from '@/components/cotizaciones/ListaCotizaciones.vue'
 import DetalleCotizacion from '@/components/cotizaciones/DetalleCotizacion.vue'
-import type { Cotizacion, EstadoCotizacion } from '@/data/cotizaciones'
+import FormularioCotizacion from '@/components/cotizaciones/FormularioCotizacion.vue'
+import type { Cotizacion } from '@/data/cotizaciones'
 
-// El workspace alterna entre lista y detalle sin cambiar de ruta, igual que en
-// el proyecto anterior. Todo es estático por ahora: los cambios de estado se
+// El workspace alterna entre lista, detalle y formulario sin cambiar de ruta,
+// igual que en el proyecto anterior. Todo es estático por ahora: los cambios se
 // aplican solo en memoria hasta que exista el backend.
-const vista = ref<'lista' | 'detalle'>('lista')
+const vista = ref<'lista' | 'detalle' | 'formulario'>('lista')
 const seleccionada = ref<Cotizacion | null>(null)
 
 function abrir(c: Cotizacion) {
@@ -21,12 +22,16 @@ function volver() {
   vista.value = 'lista'
 }
 
-function cambiarEstado(estado: EstadoCotizacion) {
-  if (seleccionada.value) seleccionada.value.estado = estado
+// Borrado suave: la cotización no desaparece de los datos, solo se filtra de la
+// lista (ver ListaCotizaciones). Así el registro no se pierde.
+function eliminar() {
+  if (seleccionada.value) seleccionada.value.estado = 'Eliminada'
+  volver()
 }
 
 function nueva() {
-  // TODO: formulario de alta (wizard de partidas) — pendiente.
+  seleccionada.value = null
+  vista.value = 'formulario'
 }
 </script>
 
@@ -34,11 +39,16 @@ function nueva() {
   <div class="page">
     <AppTopBar />
     <main class="page__main">
+      <FormularioCotizacion
+        v-if="vista === 'formulario'"
+        @volver="volver"
+        @guardado="volver"
+      />
       <DetalleCotizacion
-        v-if="vista === 'detalle' && seleccionada"
+        v-else-if="vista === 'detalle' && seleccionada"
         :cotizacion="seleccionada"
         @volver="volver"
-        @cambiar-estado="cambiarEstado"
+        @eliminar="eliminar"
       />
       <ListaCotizaciones v-else @abrir="abrir" @nueva="nueva" />
     </main>

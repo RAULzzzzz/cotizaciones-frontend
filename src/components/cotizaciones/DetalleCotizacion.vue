@@ -1,20 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import EstadoBadge from './EstadoBadge.vue'
+import { computed, ref } from 'vue'
 import ChipCompra from './ChipCompra.vue'
-import {
-  ESTADOS,
-  TRANSICIONES,
-  dinero,
-  fecha,
-  type Cotizacion,
-  type EstadoCotizacion,
-} from '@/data/cotizaciones'
+import { dinero, fecha, type Cotizacion } from '@/data/cotizaciones'
 
 const props = defineProps<{ cotizacion: Cotizacion }>()
-const emit = defineEmits<{ volver: []; cambiarEstado: [EstadoCotizacion] }>()
+const emit = defineEmits<{ volver: []; eliminar: [] }>()
 
-const siguientes = computed(() => TRANSICIONES[props.cotizacion.estado] ?? [])
+const confirmarEliminar = ref(false)
+
+function eliminarConfirmado() {
+  confirmarEliminar.value = false
+  emit('eliminar')
+}
 
 const datos = computed(() => [
   { label: 'Cliente', valor: props.cotizacion.nombreComercial },
@@ -33,7 +30,6 @@ const datos = computed(() => [
       <div class="detalle__ident">
         <div class="detalle__linea">
           <h2>{{ cotizacion.folio }}</h2>
-          <EstadoBadge :estado="cotizacion.estado" />
           <span class="detalle__version">Versión {{ cotizacion.version }}</span>
         </div>
         <p>{{ cotizacion.nombreComercial }} · {{ cotizacion.nombreAsesor }}</p>
@@ -43,6 +39,9 @@ const datos = computed(() => [
       </button>
       <button class="btn">
         <i class="mdi mdi-pencil" /> Editar
+      </button>
+      <button class="btn btn--peligro" @click="confirmarEliminar = true">
+        <i class="mdi mdi-trash-can-outline" /> Eliminar
       </button>
     </header>
 
@@ -102,20 +101,24 @@ const datos = computed(() => [
             <strong>{{ dinero(cotizacion.utilidadEstimada, cotizacion.moneda) }}</strong>
           </div>
         </section>
+      </div>
+    </div>
 
-        <section v-if="siguientes.length" class="card card--acciones">
-          <div class="card__titulo card__titulo--plano">Siguiente acción</div>
-          <button
-            v-for="e in siguientes"
-            :key="e"
-            class="accion"
-            :style="{ background: ESTADOS[e].bg, color: ESTADOS[e].color, borderColor: ESTADOS[e].bg }"
-            @click="emit('cambiarEstado', e)"
-          >
-            <span>{{ ESTADOS[e].label ?? e }}</span>
-            <i class="mdi mdi-chevron-right" />
+    <!-- Confirmación de borrado -->
+    <div v-if="confirmarEliminar" class="modal" @click.self="confirmarEliminar = false">
+      <div class="modal__caja">
+        <div class="modal__icono"><i class="mdi mdi-trash-can-outline" /></div>
+        <div class="modal__titulo">¿Eliminar esta cotización?</div>
+        <div class="modal__texto">
+          <strong>{{ cotizacion.folio }}</strong> se quitará de la lista. Esta acción no se puede
+          deshacer.
+        </div>
+        <div class="modal__acciones">
+          <button type="button" class="ui-btn" @click="confirmarEliminar = false">Cancelar</button>
+          <button type="button" class="ui-btn modal__borrar" @click="eliminarConfirmado">
+            Sí, eliminar
           </button>
-        </section>
+        </div>
       </div>
     </div>
   </div>
@@ -214,6 +217,15 @@ const datos = computed(() => [
 
 .btn--primary:hover {
   background: var(--blue-hover);
+}
+
+.btn--peligro {
+  border-color: var(--danger-bd);
+  color: var(--danger-solid);
+}
+
+.btn--peligro:hover {
+  background: var(--danger-bg);
 }
 
 .detalle__body {
@@ -411,24 +423,73 @@ const datos = computed(() => [
   color: #86efac;
 }
 
-.card--acciones {
-  padding: 16px;
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 23, 42, 0.55);
   display: flex;
-  flex-direction: column;
-  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
 
-.accion {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 11px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  font-size: 12px;
+.modal__caja {
+  background: var(--white);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+
+.modal__icono {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-bd);
+  display: grid;
+  place-items: center;
+  color: var(--danger-solid);
+  font-size: 22px;
+}
+
+.modal__titulo {
+  font-size: 15px;
   font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
+  color: var(--navy);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.modal__texto {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.modal__texto strong {
+  color: var(--navy);
+}
+
+.modal__acciones {
+  display: flex;
+  gap: 10px;
+}
+
+.modal__acciones .ui-btn {
+  flex: 1;
+  padding: 9px;
+}
+
+.modal__borrar {
+  border: none;
+  background: var(--danger-solid);
+  color: #fff;
 }
 
 @media (max-width: 900px) {

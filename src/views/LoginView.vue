@@ -48,7 +48,7 @@ async function handleSubmit() {
     if (remember.value) localStorage.setItem(REMEMBER_KEY, form.email.trim())
     else localStorage.removeItem(REMEMBER_KEY)
 
-    router.push({ name: 'dashboard' })
+    router.push({ name: 'cotizaciones' })
   } catch (err) {
     if (axios.isAxiosError(err)) {
       const status = err.response?.status

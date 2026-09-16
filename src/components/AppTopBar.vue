@@ -1,18 +1,23 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-
-const auth = useAuthStore()
-const router = useRouter()
+import { computed, ref } from 'vue'
 
 const logoOk = ref(true)
 const logoSrc = `${import.meta.env.BASE_URL}logo.png`
 
-function logout() {
-  auth.logout()
-  router.push({ name: 'login' })
-}
+// El sistema es por cuenta de empresa: en la topbar se identifica la empresa
+// registrada, no la persona que inició sesión. Placeholder hasta que exista el
+// perfil de empresa en el backend (vendrá de la sesión, como auth.user).
+const empresa = 'Taller Mecánico El Roble'
+
+const iniciales = computed(() =>
+  empresa
+    .split(' ')
+    .filter((p) => p.length > 2)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase(),
+)
 </script>
 
 <template>
@@ -20,15 +25,15 @@ function logout() {
     <img v-if="logoOk" :src="logoSrc" alt="" class="topbar__logo" @error="logoOk = false" />
 
     <nav class="topbar__nav">
-      <RouterLink :to="{ name: 'dashboard' }">Inicio</RouterLink>
       <RouterLink :to="{ name: 'cotizaciones' }">Cotizaciones</RouterLink>
+      <RouterLink :to="{ name: 'clientes' }">Clientes</RouterLink>
     </nav>
 
     <div class="topbar__user">
-      <span>{{ auth.user?.nombre }}</span>
-      <button title="Cerrar sesión" @click="logout">
-        <i class="mdi mdi-logout" />
-      </button>
+      <span>{{ empresa }}</span>
+      <!-- Espacio para el logo de la empresa o la foto del usuario. Sin imagen
+           aún, se ve como una insignia con iniciales. -->
+      <div class="topbar__avatar" :title="empresa">{{ iniciales }}</div>
     </div>
   </header>
 </template>
@@ -43,6 +48,9 @@ function logout() {
   background: var(--white);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .topbar__logo {
@@ -84,21 +92,17 @@ function logout() {
   color: var(--text-soft);
 }
 
-.topbar__user button {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--white);
-  color: var(--muted);
-  cursor: pointer;
+.topbar__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--blue-light);
+  color: var(--blue);
   display: grid;
   place-items: center;
-  font-size: 16px;
-}
-
-.topbar__user button:hover {
-  color: var(--danger-solid);
-  border-color: var(--danger-bd);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
 }
 </style>

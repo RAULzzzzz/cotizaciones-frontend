@@ -1,41 +1,39 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { COTIZACIONES, dinero, fecha, type Cotizacion } from '@/data/cotizaciones'
+import { CLIENTES, type ClienteRegistrado } from '@/data/clientes'
 
-const emit = defineEmits<{ abrir: [Cotizacion]; nueva: [] }>()
+const emit = defineEmits<{ nuevo: [] }>()
 
-const PAGE_SIZE = 5
+const PAGE_SIZE = 6
 
 const buscar = ref('')
 const pagina = ref(1)
+const confirmarEliminar = ref<ClienteRegistrado | null>(null)
 
-// El sistema no lleva historial de estados: la lista solo muestra cotizaciones
-// vigentes. Una "Eliminada" (borrado suave) desaparece de aquí sin perder el registro.
-const filtradas = computed(() => {
+const filtrados = computed(() => {
   const q = buscar.value.trim().toLowerCase()
-  return COTIZACIONES.filter((c) => {
-    if (c.estado === 'Eliminada') return false
-    if (!q) return true
-    return (
-      c.folio.toLowerCase().includes(q) ||
+  if (!q) return CLIENTES
+  return CLIENTES.filter(
+    (c) =>
       c.nombreComercial.toLowerCase().includes(q) ||
-      c.atencionA.toLowerCase().includes(q)
-    )
-  })
+      c.rfc.toLowerCase().includes(q) ||
+      c.atencionA.toLowerCase().includes(q) ||
+      c.correoContacto.toLowerCase().includes(q),
+  )
 })
 
-const totalPaginas = computed(() => Math.max(1, Math.ceil(filtradas.value.length / PAGE_SIZE)))
-
-// Si un filtro deja la página actual fuera de rango, volvemos a la primera.
+const totalPaginas = computed(() => Math.max(1, Math.ceil(filtrados.value.length / PAGE_SIZE)))
 const paginaActual = computed(() => Math.min(pagina.value, totalPaginas.value))
-
 const visibles = computed(() =>
-  filtradas.value.slice((paginaActual.value - 1) * PAGE_SIZE, paginaActual.value * PAGE_SIZE),
+  filtrados.value.slice((paginaActual.value - 1) * PAGE_SIZE, paginaActual.value * PAGE_SIZE),
 )
 
-function limpiarFiltros() {
-  buscar.value = ''
-  pagina.value = 1
+function eliminarConfirmado() {
+  if (!confirmarEliminar.value) return
+  const i = CLIENTES.findIndex((c) => c.idCliente === confirmarEliminar.value!.idCliente)
+  if (i !== -1) CLIENTES.splice(i, 1)
+  confirmarEliminar.value = null
+  if (paginaActual.value > totalPaginas.value) pagina.value = totalPaginas.value
 }
 </script>
 
@@ -43,11 +41,11 @@ function limpiarFiltros() {
   <div class="ws">
     <div class="ws__head">
       <div class="ws__titles">
-        <h2>Cotizaciones</h2>
-        <p>Refacciones, mano de obra y servicios para clientes del taller</p>
+        <h2>Clientes</h2>
+        <p>Directorio de clientes registrados en el taller</p>
       </div>
-      <button class="btn btn--primary" @click="emit('nueva')">
-        <i class="mdi mdi-file-plus-outline" /> Nueva cotización
+      <button class="btn btn--primary" @click="emit('nuevo')">
+        <i class="mdi mdi-account-plus-outline" /> Nuevo cliente
       </button>
     </div>
 
@@ -56,56 +54,57 @@ function limpiarFiltros() {
         <i class="mdi mdi-magnify" />
         <input
           v-model="buscar"
-          placeholder="Buscar por folio, cliente o contacto"
+          placeholder="Buscar por nombre, RFC, correo o contacto"
           @input="pagina = 1"
         />
         <button v-if="buscar" class="filtros__limpiar" title="Limpiar búsqueda" @click="buscar = ''">
           <i class="mdi mdi-close" />
         </button>
       </div>
-      <button class="filtros__refrescar" title="Restablecer filtros" @click="limpiarFiltros">
-        <i class="mdi mdi-refresh" />
-      </button>
     </div>
 
     <div class="ws__body">
       <div v-if="visibles.length === 0" class="vacio">
-        <i class="mdi mdi-package-variant-closed" />
-        <div class="vacio__titulo">No hay cotizaciones que coincidan</div>
-        <div class="vacio__texto">Ajusta la búsqueda.</div>
+        <i class="mdi mdi-account-search-outline" />
+        <div class="vacio__titulo">No hay clientes que coincidan</div>
+        <div class="vacio__texto">Ajusta la búsqueda o registra un cliente nuevo.</div>
       </div>
 
       <div v-else class="lista">
-        <button
+        <div
           v-for="(c, i) in visibles"
-          :key="c.id"
+          :key="c.idCliente"
           class="fila"
           :style="{ animationDelay: `${Math.min(i, 10) * 0.04}s` }"
-          @click="emit('abrir', c)"
         >
-          <div class="fila__folio">
-            <strong>{{ c.folio }}</strong>
-            <span>Versión {{ c.version }}</span>
+          <div class="fila__id">
+            <strong>#{{ c.idCliente }}</strong>
+            <span>{{ c.tipoCliente }}</span>
           </div>
-          <div class="fila__cliente">
+          <div class="fila__nombre">
             <strong>{{ c.nombreComercial }}</strong>
-            <span>
-              {{ c.tipoCliente }} · {{ c.partidas.length }}
-              partida{{ c.partidas.length === 1 ? '' : 's' }}
-            </span>
+            <span>{{ c.atencionA || 'Sin contacto asignado' }}</span>
           </div>
-          <div class="fila__total">
-            <strong>{{ dinero(c.total, c.moneda) }}</strong>
-            <span>{{ fecha(c.vigenciaHasta) }}</span>
+          <div class="fila__datos">
+            <span>{{ c.correoContacto || 'Sin correo' }}</span>
+            <span>{{ c.telefonoContacto || 'Sin teléfono' }}</span>
           </div>
-          <i class="mdi mdi-chevron-right fila__chevron" />
-        </button>
+          <div class="fila__rfc">{{ c.rfc || '—' }}</div>
+          <button
+            type="button"
+            class="fila__borrar"
+            title="Eliminar cliente"
+            @click="confirmarEliminar = c"
+          >
+            <i class="mdi mdi-trash-can-outline" />
+          </button>
+        </div>
       </div>
 
       <div v-if="totalPaginas > 1" class="paginacion">
         <div class="paginacion__info">
-          Página {{ paginaActual }} de {{ totalPaginas }} · {{ filtradas.length }}
-          registro{{ filtradas.length === 1 ? '' : 's' }}
+          Página {{ paginaActual }} de {{ totalPaginas }} · {{ filtrados.length }}
+          registro{{ filtrados.length === 1 ? '' : 's' }}
         </div>
         <div class="paginacion__botones">
           <button :disabled="paginaActual <= 1" @click="pagina = paginaActual - 1">‹</button>
@@ -120,6 +119,24 @@ function limpiarFiltros() {
           </button>
           <button :disabled="paginaActual >= totalPaginas" @click="pagina = paginaActual + 1">
             ›
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmación de borrado -->
+    <div v-if="confirmarEliminar" class="modal" @click.self="confirmarEliminar = null">
+      <div class="modal__caja">
+        <div class="modal__icono"><i class="mdi mdi-trash-can-outline" /></div>
+        <div class="modal__titulo">¿Eliminar este cliente?</div>
+        <div class="modal__texto">
+          <strong>{{ confirmarEliminar.nombreComercial }}</strong> se quitará del directorio. Esta
+          acción no se puede deshacer.
+        </div>
+        <div class="modal__acciones">
+          <button type="button" class="ui-btn" @click="confirmarEliminar = null">Cancelar</button>
+          <button type="button" class="ui-btn modal__borrar" @click="eliminarConfirmado">
+            Sí, eliminar
           </button>
         </div>
       </div>
@@ -222,16 +239,6 @@ function limpiarFiltros() {
   border-color: var(--blue);
 }
 
-.filtros__limpiar,
-.filtros__refrescar {
-  border: none;
-  background: transparent;
-  color: var(--muted-2);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-
 .filtros__limpiar {
   position: absolute;
   right: 7px;
@@ -239,16 +246,12 @@ function limpiarFiltros() {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-}
-
-.filtros__refrescar {
-  width: 39px;
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--navy);
-  font-size: 16px;
+  border: none;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
 }
 
 .lista {
@@ -261,21 +264,15 @@ function limpiarFiltros() {
   width: 100%;
   text-align: left;
   display: grid;
-  grid-template-columns: minmax(115px, 150px) minmax(190px, 1fr) minmax(110px, 150px) 24px;
+  grid-template-columns: 90px minmax(190px, 1fr) minmax(150px, 1fr) 120px 36px;
   gap: 16px;
   align-items: center;
-  padding: 19px 20px;
+  padding: 16px 20px;
   border: 1px solid var(--border);
   border-radius: 11px;
   background: var(--white);
   font-family: inherit;
-  cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   animation: filaDrop 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.fila:hover {
-  transform: scale(1.006);
 }
 
 @keyframes filaDrop {
@@ -292,22 +289,26 @@ function limpiarFiltros() {
   }
 }
 
-.fila__folio strong {
-  display: block;
-  color: var(--navy);
-  font-size: 14px;
+.fila__id {
+  display: flex;
+  flex-direction: column;
 }
 
-.fila__folio span {
+.fila__id strong {
+  color: var(--navy);
+  font-size: 13px;
+}
+
+.fila__id span {
   color: var(--muted);
   font-size: 11px;
 }
 
-.fila__cliente {
+.fila__nombre {
   min-width: 0;
 }
 
-.fila__cliente strong {
+.fila__nombre strong {
   display: block;
   color: var(--text);
   font-size: 14px;
@@ -316,29 +317,48 @@ function limpiarFiltros() {
   white-space: nowrap;
 }
 
-.fila__cliente span {
+.fila__nombre span {
   color: var(--muted);
   font-size: 12px;
 }
 
-.fila__total {
-  text-align: right;
+.fila__datos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
 }
 
-.fila__total strong {
-  display: block;
-  color: var(--navy);
+.fila__datos span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fila__rfc {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+
+.fila__borrar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
   font-size: 15px;
 }
 
-.fila__total span {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.fila__chevron {
-  color: var(--muted-2);
-  font-size: 17px;
+.fila__borrar:hover {
+  color: var(--danger-solid);
+  border-color: var(--danger-bd);
+  background: var(--danger-bg);
 }
 
 .vacio {
@@ -410,5 +430,85 @@ function limpiarFiltros() {
 .paginacion__botones button:disabled:not(.is-active) {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal__caja {
+  background: var(--white);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+
+.modal__icono {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-bd);
+  display: grid;
+  place-items: center;
+  color: var(--danger-solid);
+  font-size: 22px;
+}
+
+.modal__titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.modal__texto {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.modal__texto strong {
+  color: var(--navy);
+}
+
+.modal__acciones {
+  display: flex;
+  gap: 10px;
+}
+
+.modal__acciones .ui-btn {
+  flex: 1;
+  padding: 9px;
+}
+
+.modal__borrar {
+  border: none;
+  background: var(--danger-solid);
+  color: #fff;
+}
+
+@media (max-width: 800px) {
+  .fila {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+
+  .fila__id,
+  .fila__rfc {
+    display: none;
+  }
 }
 </style>
